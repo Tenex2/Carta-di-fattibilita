@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor Propagazione Microonde Italia (ITU-R) - For Amateur Radio Stations IK0EQJ </title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Material Icons & Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    
+    <!-- Leaflet.js (Mappe) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d0e12;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #14161d;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #2d313f;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3e4458;
+        }
+        .leaflet-container {
+            background: #f4f5f7 !important;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="border-b border-slate-800 bg-[#11131c] px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+        <div class="flex items-center gap-3">
+            <span class="material-icons text-cyan-400 text-3xl animate-pulse">radar</span>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    ITA-MW propagation <span class="text-xs bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 px-2 py-0.5 rounded-full">For Amateur Radio Stations</span>
+                </h1>
+                <p class="text-xs text-slate-400">Monitor Onde Millimetriche & Microonde (10 - 241 GHz) sulla Penisola Italiana</p>
+            </div>
+        </div>
+        
+        <!-- Quick Stats / Status -->
+        <div class="flex items-center gap-6">
+            <div class="text-right">
+                <span class="text-[10px] uppercase text-slate-500 font-semibold block">Ultimo Aggiornamento Radar</span>
+                <span id="radar-time" class="text-xs text-slate-300 font-mono">Verifica in corso...</span>
+            </div>
+            <button onclick="fetchWeatherData()" class="bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold px-3 py-2 rounded-lg flex items-center gap-1.5 transition">
+                <span class="material-icons text-sm">refresh</span> Aggiorna Meteo Nodi
+            </button>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT CONTAINER -->
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 overflow-hidden">
+        
+        <!-- Left Sidebar: Controls, Locator Search & Path Calculator -->
+        <section class="lg:col-span-4 flex flex-col gap-6 overflow-y-auto max-h-[calc(100vh-130px)] pr-2">
+            
+            <!-- App Notifications / Banner -->
+            <div id="alert-banner" class="hidden bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs rounded-xl p-3 flex items-start gap-2">
+                <span class="material-icons text-sm mt-0.5">info</span>
+                <span id="alert-text">Dati caricati correttamente.</span>
+            </div>
+
+            <!-- Freq Config Card -->
+            <div class="bg-[#141622] border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-sm font-semibold tracking-wide text-slate-300 uppercase flex items-center gap-2">
+                        <span class="material-icons text-cyan-400 text-lg">settings_input_antenna</span> Frequenza di Lavoro
+                    </h2>
+                    <span id="wavelength-badge" class="text-xs text-cyan-400 font-mono bg-cyan-500/10 px-2.5 py-0.5 rounded-full border border-cyan-500/20">λ = 12.4 mm</span>
+                </div>
+                
+                <!-- Radio Group for Frequencies (10 to 241 GHz) -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="selectFrequency('10 GHz')" id="freq-btn-10" class="freq-btn border border-slate-800 bg-[#1a1d2d] text-slate-300 p-2.5 rounded-xl flex flex-col items-center justify-center hover:border-slate-700 transition">
+                        <span class="text-sm font-bold font-mono">10.368 GHz</span>
+                        <span class="text-[9px] text-slate-400">Banda 3 cm</span>
+                    </button>
+                    <button onclick="selectFrequency('24 GHz')" id="freq-btn-24" class="freq-btn border-2 border-cyan-500 bg-cyan-500/10 text-white p-2.5 rounded-xl flex flex-col items-center justify-center transition">
+                        <span class="text-sm font-bold font-mono">24.048 GHz</span>
+                        <span class="text-[9px] text-slate-400">Banda 1.2 cm</span>
+                    </button>
+                    <button onclick="selectFrequency('47 GHz')" id="freq-btn-47" class="freq-btn border border-slate-800 bg-[#1a1d2d] text-slate-300 p-2.5 rounded-xl flex flex-col items-center justify-center hover:border-slate-700 transition">
+                        <span class="text-sm font-bold font-mono">47.088 GHz</span>
+                        <span class="text-[9px] text-slate-400">Banda 6 mm</span>
+                    </button>
+                    <button onclick="selectFrequency('76 GHz')" id="freq-btn-76" class="freq-btn border border-slate-800 bg-[#1a1d2d] text-slate-300 p-2.5 rounded-xl flex flex-col items-center justify-center hover:border-slate-700 transition">
+                        <span class="text-sm font-bold font-mono">76.032 GHz</span>
+                        <span class="text-[9px] text-slate-400">Banda 4 mm</span>
+                    </button>
+                    <button onclick="selectFrequency('122 GHz')" id="freq-btn-122" class="freq-btn border border-slate-800 bg-[#1a1d2d] text-slate-300 p-2.5 rounded-xl flex flex-col items-center justify-center hover:border-slate-700 transition">
+                        <span class="text-sm font-bold font-mono">122.250 GHz</span>
+                        <span class="text-[9px] text-slate-400">Banda 2.5 mm</span>
+                    </button>
+                    <button onclick="selectFrequency('241 GHz')" id="freq-btn-241" class="freq-btn border border-slate-800 bg-[#1a1d2d] text-slate-300 p-2.5 rounded-xl flex flex-col items-center justify-center hover:border-slate-700 transition">
+                        <span class="text-sm font-bold font-mono">241.000 GHz</span>
+                        <span class="text-[9px] text-slate-400">Banda 1.2 mm</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Localities Search & Draggable Marker Tools -->
+            <div class="bg-[#141622] border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+                <h2 class="text-sm font-semibold tracking-wide text-slate-300 uppercase flex items-center gap-2">
+                    <span class="material-icons text-emerald-400 text-lg">travel_explore</span> Località & Coordinate
+                </h2>
+                
+                <!-- Textual Location Search -->
+                <div>
+                    <label class="text-[10px] text-slate-400 font-semibold uppercase block mb-1">Cerca Comune o Vetta</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="search-input" placeholder="Es. Monte Cimone, Sasso Marconi..." class="w-full bg-[#1c1f32] border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500" />
+                        <button onclick="searchLocation()" class="bg-slate-800 hover:bg-slate-700 text-white text-xs font-semibold px-3 rounded-xl transition flex items-center">
+                            <span class="material-icons text-sm">search</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live Search Action Buttons -->
+                <div class="grid grid-cols-2 gap-2">
+                    <button id="set-st-a-btn" onclick="applySearchTo('A')" class="hidden bg-emerald-600/20 border border-emerald-500/30 text-emerald-400 text-[10px] font-bold py-1.5 px-2 rounded-lg transition hover:bg-emerald-600/30">
+                        Imposta Staz. A (Verde)
+                    </button>
+                    <button id="set-st-b-btn" onclick="applySearchTo('B')" class="hidden bg-rose-600/20 border border-rose-500/30 text-rose-400 text-[10px] font-bold py-1.5 px-2 rounded-lg transition hover:bg-rose-600/30">
+                        Imposta Staz. B (Rossa)
+                    </button>
+                </div>
+                <div id="search-results-feedback" class="text-[11px] text-slate-500 italic hidden"></div>
+
+                <div class="h-[1px] bg-slate-800/60 my-1"></div>
+
+                <!-- Maidenhead QTH Locator Input Block -->
+            <div>
+                <h3 class="text-xs font-semibold text-slate-300 uppercase mb-2 flex items-center gap-1.5">
+                    <span class="material-icons text-cyan-400 text-sm">grid_3x3</span> QTH Locator (Maidenhead)
+                </h3>
+                <p class="text-[11px] text-slate-400 mb-3 leading-relaxed">
+                    Modifica o inserisci un locator a 2, 4, 6, 8 o 10 caratteri per posizionare le stazioni al volo sulla mappa.
+                </p>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="text-[9px] text-emerald-400 font-bold block mb-1">LOCATOR ST. A</label>
+                        <input type="text" id="loc-a-input" placeholder="JN61FO67GW" oninput="applyLocator('A')" class="w-full bg-[#1c1f32] border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-emerald-500 uppercase" />
+                        <div class="flex gap-1 mt-1.5">
+                            <button onclick="saveCurrentAsDefault('A')" title="Salva come default personale di avvio" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[9px] font-bold py-1 px-1.5 rounded-lg transition flex items-center justify-center gap-0.5">
+                                <span class="material-icons text-[10px]">save</span> Default
+                            </button>
+                            <button onclick="useGPS('A')" title="Usa il GPS del dispositivo" class="bg-emerald-600/20 border border-emerald-500/30 hover:bg-emerald-600/30 text-emerald-400 text-[9px] font-bold py-1 px-1.5 rounded-lg transition flex items-center justify-center gap-0.5">
+                                <span class="material-icons text-[10px]">my_location</span> GPS
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="text-[9px] text-rose-400 font-bold block mb-1">LOCATOR ST. B</label>
+                        <input type="text" id="loc-b-input" placeholder="JN42po45xy" oninput="applyLocator('B')" class="w-full bg-[#1c1f32] border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white font-mono focus:outline-none focus:border-rose-500 uppercase" />
+                        <div class="flex gap-1 mt-1.5">
+                            <button onclick="saveCurrentAsDefault('B')" title="Salva come default personale di avvio" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[9px] font-bold py-1 px-1.5 rounded-lg transition flex items-center justify-center gap-0.5">
+                                <span class="material-icons text-[10px]">save</span> Default
+                            </button>
+                            <button onclick="useGPS('B')" title="Usa il GPS del dispositivo" class="bg-rose-600/20 border border-rose-500/30 hover:bg-rose-600/30 text-rose-400 text-[9px] font-bold py-1 px-1.5 rounded-lg transition flex items-center justify-center gap-0.5">
+                                <span class="material-icons text-[10px]">my_location</span> GPS
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div id="locator-feedback" class="text-[10px] text-rose-400 italic mt-1.5 hidden"></div>
+            </div>
+        </div>
+
+        <!-- Path Loss & Link Budget Calculator Card -->
+        <div class="bg-[#141622] border border-slate-800 rounded-2xl p-5 flex flex-col gap-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-semibold tracking-wide text-slate-300 uppercase flex items-center gap-2">
+                    <span class="material-icons text-amber-400 text-lg">settings_suggest</span> Link Budget & Fattibilità
+                </h2>
+                <span class="text-[10px] bg-slate-800 text-slate-300 font-mono px-2 py-0.5 rounded">Calcolo ITU-R</span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3 text-xs">
+                <div class="bg-[#1c1f32] border border-slate-800 rounded-xl p-3 flex flex-col gap-1">
+                    <span class="text-[10px] text-emerald-400 font-bold block mb-0.5">STAZIONE A</span>
+                    <div id="info-st-a" class="text-[11px] text-slate-300 font-mono leading-relaxed">Usa marker verde</div>
+                </div>
+                <div class="bg-[#1c1f32] border border-slate-800 rounded-xl p-3 flex flex-col gap-1">
+                    <span class="text-[10px] text-rose-400 font-bold block mb-0.5">STAZIONE B</span>
+                    <div id="info-st-b" class="text-[11px] text-slate-300 font-mono leading-relaxed">Usa marker rosso</div>
+                </div>
+            </div>
+
+            <!-- Parameters Input Grid -->
+            <div class="grid grid-cols-2 gap-3 text-xs border-t border-slate-800/60 pt-3">
+                <div>
+                    <label class="text-[10px] text-slate-400 font-semibold uppercase block mb-1">Potenza TX</label>
+                    <select id="tx-power" onchange="calculatePathLoss()" class="w-full bg-[#1c1f32] border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono">
+                        <option value="20">100 mW (+20 dBm)</option>
+                        <option value="30" selected>1 Watt (+30 dBm)</option>
+                        <option value="37">5 Watt (+37 dBm)</option>
+                        <option value="40">10 Watt (+40 dBm)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-400 font-semibold uppercase block mb-1">Sensibilità RX</label>
+                    <select id="rx-sens" onchange="calculatePathLoss()" class="w-full bg-[#1c1f32] border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono">
+                        <option value="-140">Digi / WSJT-X (-140 dBm)</option>
+                        <option value="-120">SSB Banda Stretta (-120 dBm)</option>
+                        <option value="-110" selected>Fonia Analogica (-110 dBm)</option>
+                        <option value="-90">FM / ATV Larga (-90 dBm)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-400 font-semibold uppercase block mb-1">Antenna A (Guadagno)</label>
+                    <div class="relative flex items-center">
+                        <input type="number" id="ant-gain-a" value="35" oninput="calculatePathLoss()" class="w-full bg-[#1c1f32] border border-slate-800 rounded-xl pl-2.5 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono" />
+                        <span class="absolute right-2.5 text-[10px] text-slate-500 font-mono">dBi</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="text-[10px] text-slate-400 font-semibold uppercase block mb-1">Antenna B (Guadagno)</label>
+                    <div class="relative flex items-center">
+                        <input type="number" id="ant-gain-b" value="35" oninput="calculatePathLoss()" class="w-full bg-[#1c1f32] border border-slate-800 rounded-xl pl-2.5 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-cyan-500 font-mono" />
+                        <span class="absolute right-2.5 text-[10px] text-slate-500 font-mono">dBi</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Path Losses Recap -->
+            <div class="bg-[#0e1019] border border-slate-800/60 rounded-xl p-4 flex flex-col gap-2.5">
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Distanza Geodetica:</span>
+                    <span id="p2p-distance" class="font-bold text-white font-mono">-</span>
+                </div>
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Perdite Spazio Libero (FSL):</span>
+                    <span id="p2p-fsl" class="font-bold text-slate-300 font-mono">-</span>
+                </div>
+                <div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-400">Perdite Atmosferiche (ITU):</span>
+                    <span id="p2p-gas" class="font-bold text-amber-400 font-mono">-</span>
+                </div>
+                <div class="h-[1px] bg-slate-800/80 my-1"></div>
+                <div class="flex justify-between items-center">
+                    <span class="text-xs text-slate-300 font-semibold">Attenuazione di Tratta:</span>
+                    <span id="p2p-total" class="font-extrabold text-sm text-cyan-400 font-mono">-</span>
+                </div>
+            </div>
+
+            <!-- Interactive Feasibility Status Card -->
+            <div id="feasibility-card" class="p-4 rounded-xl border bg-slate-950/20 flex flex-col gap-2 transition-all duration-300">
+                <div class="flex items-center gap-3">
+                    <!-- Dynamic Dot Indicator -->
+                    <span id="feasibility-dot" class="w-3.5 h-3.5 rounded-full ring-4 transition-all duration-300"></span>
+                    <div>
+                        <span id="feasibility-status" class="text-xs font-bold uppercase tracking-wider block">Calcolo...</span>
+                        <span id="feasibility-margin-label" class="text-[10px] text-slate-400 font-mono block">Margine: -</span>
+                    </div>
+                </div>
+                <p id="feasibility-desc" class="text-[11px] text-slate-400 leading-relaxed pt-1 border-t border-slate-800/40"></p>
+                <div class="flex justify-between items-center text-[10px] font-mono text-slate-500 mt-1">
+                    <span>Segnale RX: <strong id="val-rx-signal" class="text-slate-300">-</strong></span>
+                    <span>Soglia RX: <strong id="val-rx-sens" class="text-slate-300">-</strong></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- ITU-R Reference Guide -->
+            <div class="bg-[#141622] border border-slate-800 rounded-2xl p-5 flex flex-col gap-3">
+                <h2 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <span class="material-icons text-sm text-slate-400">help_outline</span> Modelli Propagativi ITU-R
+                </h2>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                    Sopra i 10 GHz l'attenuazione dell'aria umida è dettata dalla raccomandazione <strong class="text-slate-200">ITU-R P.676-12</strong>. Salendo a 76 GHz, 122 GHz e 241 GHz, la pioggia provoca una fortissima attenuazione asimmetrica (<strong class="text-slate-200">ITU-R P.838</strong>) che supera i 30 dB/km.
+                </p>
+                <div class="grid grid-cols-1 gap-2 text-[11px] bg-[#1a1d2d]/50 p-3 rounded-xl border border-slate-800/50">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+                        <span class="text-slate-300">&lt; 0.2 dB/km: Ottima Propagazione</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
+                        <span class="text-slate-300">0.2 - 2.0 dB/km: Attenuazione moderata</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span>
+                        <span class="text-slate-300">&gt; 2.0 dB/km: Forte assorbimento / Chiusura tratta</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Section: Map & Regional Live Data Grid -->
+        <section class="lg:col-span-8 flex flex-col gap-6">
+            
+            <!-- Map Card -->
+            <div class="bg-[#141622] border border-slate-800 rounded-2xl overflow-hidden flex-1 min-h-[420px] flex flex-col relative">
+
+                <!-- Leaflet Map Div -->
+                <div id="map" class="w-full flex-1"></div>
+            </div>
+
+            <!-- Profilo altimetrico A-B -->
+            <div class="bg-[#141622] border border-slate-800 rounded-2xl p-5">
+                <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+                    <h2 class="text-sm font-semibold tracking-wide text-slate-300 uppercase flex items-center gap-2">
+                        <span class="material-icons text-cyan-400 text-lg">terrain</span> Profilo altimetrico A &rarr; B
+                    </h2>
+                    <div class="flex items-center gap-3 text-xs text-slate-400">
+                        <label class="flex items-center gap-1">h antenna A (m)
+                            <input id="prof-ha" type="number" value="10" min="0" class="w-16 bg-[#0a0b0e] border border-slate-700 rounded px-2 py-1 text-white font-mono">
+                        </label>
+                        <label class="flex items-center gap-1">Atmosfera
+                            <select id="prof-k" class="bg-[#0a0b0e] border border-slate-700 rounded px-2 py-1 text-white">
+                                <option value="inf" selected>Condotto aperto (ducting)</option>
+                                <option value="4">Super-rifrazione (k=4)</option>
+                                <option value="2">Rifrazione forte (k=2)</option>
+                                <option value="1.3333">Standard (k=4/3)</option>
+                            </select>
+                        </label>
+                        <label class="flex items-center gap-1">h antenna B (m)
+                            <input id="prof-hb" type="number" value="10" min="0" class="w-16 bg-[#0a0b0e] border border-slate-700 rounded px-2 py-1 text-white font-mono">
+                        </label>
+                    </div>
+                </div>
+                <div id="prof-status" class="text-xs font-mono mb-2 text-slate-400">Calcolo profilo...</div>
+                <div id="duct-box" class="text-xs font-mono mb-3 p-3 rounded-lg border border-slate-700 bg-[#0a0b0e] text-slate-400">Calcolo indice di condotto...</div>
+                <div id="prof-chart" class="w-full overflow-x-auto"></div>
+                <p class="text-[10px] text-slate-500 mt-2">Quote: Open-Meteo (DEM ~90 m). Curvatura terrestre secondo l'atmosfera scelta (con il condotto aperto è compensata; il condotto reale richiede antenne dentro lo strato guida); zona di Fresnel al 100% e 60%. Gli edifici e la vegetazione non sono inclusi.</p>
+            </div>
+
+            <!-- Stations Realtime Data Table -->
+            <div class="bg-[#141622] border border-slate-800 rounded-2xl p-5">
+                <h2 class="text-sm font-semibold tracking-wide text-slate-300 uppercase mb-4 flex items-center gap-2">
+                    <span class="material-icons text-cyan-400 text-lg">cloud_queue</span> Nodi Nazionali di Riferimento & Meteo Live
+                </h2>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead>
+                            <tr class="border-b border-slate-800 text-slate-400 font-medium">
+                                <th class="pb-3 pl-2">Stazione Monitorata</th>
+                                <th class="pb-3">Temp.</th>
+                                <th class="pb-3">Umidità</th>
+                                <th class="pb-3">Pioggia (h)</th>
+                                <th class="pb-3">Press.</th>
+                                <th class="pb-3">Att. Totale (dB/km)</th>
+                                <th class="pb-3 text-right pr-2">Indice Ducting</th>
+                            </tr>
+                        </thead>
+                        <tbody id="stations-table-body" class="divide-y divide-slate-800/50">
+                            <!-- Dynamic Weather Table Rows -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Footer Info -->
+    <footer class="border-t border-slate-800/80 bg-[#0a0b0e] py-3 px-6 text-center text-[10px] text-slate-500 flex flex-wrap justify-between gap-2">
+        <span>Formule in tempo reale conformi a ITU-R P.676-12 e ITU-R P.838.</span>
+        <span>© 2026 ITA-MW Project. Realizzato per uso sperimentale e radioamatoriale.</span>
+    </footer>
+
+    <script>
+        // 1. Microwave Configs estese (da 10 GHz a 241 GHz) per ITU-R P.676 e P.838
+        const MICROWAVE_BAND_CONFIGS = {
+            "10 GHz": {
+                name: "10.368 GHz",
+                wavelength: "28.9 mm",
+                gammaOxygen: 0.007, 
+                waterVaporFactor: 0.001, 
+                k_rain: 0.012, 
+                alpha_rain: 1.25 
+            },
+            "24 GHz": {
+                name: "24.048 GHz",
+                wavelength: "12.4 mm",
+                gammaOxygen: 0.015, 
+                waterVaporFactor: 0.012, 
+                k_rain: 0.11, 
+                alpha_rain: 1.05 
+            },
+            "47 GHz": {
+                name: "47.088 GHz",
+                wavelength: "6.3 mm",
+                gammaOxygen: 0.065,
+                waterVaporFactor: 0.024,
+                k_rain: 0.45,
+                alpha_rain: 0.95
+            },
+            "76 GHz": {
+                name: "76.032 GHz",
+                wavelength: "3.9 mm",
+                gammaOxygen: 0.18,
+                waterVaporFactor: 0.045,
+                k_rain: 1.10,
+                alpha_rain: 0.85
+            },
+            "122 GHz": {
+                name: "122.250 GHz",
+                wavelength: "2.4 mm",
+                gammaOxygen: 0.45,
+                waterVaporFactor: 0.095,
+                k_rain: 2.10,
+                alpha_rain: 0.75
+            },
+            "241 GHz": {
+                name: "241.000 GHz",
+                wavelength: "1.2 mm",
+                gammaOxygen: 0.85,
+                waterVaporFactor: 0.380,
+                k_rain: 3.20,
+                alpha_rain: 0.65
+            }
+        };
+
+        // 2. Definizione dei nodi italiani di riferimento
+        let CITIES = [
+            { id: "milano", name: "Milano (Pianura Padana)", lat: 45.4642, lon: 9.1900, temp: 15, rh: 65, rain: 0, pressure: 1015, wind: 5, att: 0, ducting: 0 },
+            { id: "roma", name: "Roma (Centro Tirreno)", lat: 41.8919, lon: 12.5113, temp: 18, rh: 55, rain: 0, pressure: 1014, wind: 8, att: 0, ducting: 0 },
+            { id: "venezia", name: "Venezia (Alto Adriatico)", lat: 45.4408, lon: 12.3155, temp: 14, rh: 75, rain: 0, pressure: 1016, wind: 12, att: 0, ducting: 0 },
+            { id: "genova", name: "Genova (Mar Ligure)", lat: 44.4056, lon: 8.9463, temp: 16, rh: 70, rain: 0, pressure: 1013, wind: 15, att: 0, ducting: 0 },
+            { id: "bari", name: "Bari (Basso Adriatico)", lat: 41.1171, lon: 16.8719, temp: 19, rh: 60, rain: 0, pressure: 1015, wind: 10, att: 0, ducting: 0 },
+            { id: "cagliari", name: "Cagliari (Sardegna Sud)", lat: 39.2238, lon: 9.1217, temp: 20, rh: 50, rain: 0, pressure: 1016, wind: 14, att: 0, ducting: 0 },
+            { id: "palermo", name: "Palermo (Sicilia Nord)", lat: 38.1157, lon: 13.3615, temp: 21, rh: 52, rain: 0, pressure: 1014, wind: 9, att: 0, ducting: 0 }
+        ];
+
+        // Carica il locator di default salvato nel browser, altrimenti imposta JN61FO67GW (Stazione A) e JN54AD12AB (Stazione B)
+        const savedLocA = localStorage.getItem('mw_default_stA') || "JN61FO67GW";
+        const savedLocB = localStorage.getItem('mw_default_stB') || "JN54AD12AB";
+
+        const decodedA = decodeMaidenhead(savedLocA) || { lat: 41.6164, lon: 12.4689 };
+        const decodedB = decodeMaidenhead(savedLocB) || { lat: 45.8458, lon: 9.2312 };
+
+        let stationA = { 
+            lat: parseFloat(decodedA.lat.toFixed(5)), 
+            lon: parseFloat(decodedA.lon.toFixed(5)), 
+            name: `${savedLocA} (A)`, 
+            temp: 12, rh: 60, rain: 0, pressure: 1012, wind: 15, att: 0 
+        };
+        let stationB = { 
+            lat: parseFloat(decodedB.lat.toFixed(5)), 
+            lon: parseFloat(decodedB.lon.toFixed(5)), 
+            name: `${savedLocB} (B)`, 
+            temp: 14, rh: 58, rain: 0, pressure: 1013, wind: 10, att: 0 
+        };
+
+        let selectedFrequency = "24 GHz";
+        let map, pathPolyline;
+        let cityMarkers = {};
+        let markerA, markerB;
+        let lastSearchResult = null;
+
+        // Converte Lat/Lon in un Maidenhead locator fino a 10 caratteri
+        function encodeMaidenhead(lat, lon, precision = 10) {
+            if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return "";
+            
+            let y = lat + 90.0;
+            let x = lon + 180.0;
+            let locator = "";
+            
+            // Coppia 1: Campi (Lettere A-R)
+            let f_lon = Math.floor(x / 20);
+            let f_lat = Math.floor(y / 10);
+            locator += String.fromCharCode(65 + f_lon);
+            locator += String.fromCharCode(65 + f_lat);
+            
+            let rem_x = x - f_lon * 20;
+            let rem_y = y - f_lat * 10;
+            
+            // Coppia 2: Quadrati (Cifre 0-9)
+            if (precision >= 4) {
+                let s_lon = Math.floor(rem_x / 2);
+                let s_lat = Math.floor(rem_y / 1);
+                locator += s_lon;
+                locator += s_lat;
+                rem_x = rem_x - s_lon * 2;
+                rem_y = rem_y - s_lat * 1;
+            }
+            
+            // Coppia 3: Sottoquadrati (Lettere a-x minuscole)
+            if (precision >= 6) {
+                let sub_lon = Math.floor(rem_x / (2 / 24));
+                let sub_lat = Math.floor(rem_y / (1 / 24));
+                locator += String.fromCharCode(97 + sub_lon);
+                locator += String.fromCharCode(97 + sub_lat);
+                rem_x = rem_x - sub_lon * (2 / 24);
+                rem_y = rem_y - sub_lat * (1 / 24);
+            }
+            
+            // Coppia 4: Quadrati Estesi (Cifre 0-9)
+            if (precision >= 8) {
+                let ext_lon = Math.floor(rem_x / (2 / 240));
+                let ext_lat = Math.floor(rem_y / (1 / 240));
+                locator += ext_lon;
+                locator += ext_lat;
+                rem_x = rem_x - ext_lon * (2 / 240);
+                rem_y = rem_y - ext_lat * (1 / 240);
+            }
+            
+            // Coppia 5: Sottoquadrati Estesi (Lettere a-x minuscole)
+            if (precision >= 10) {
+                let extsub_lon = Math.floor(rem_x / (2 / 5760));
+                let extsub_lat = Math.floor(rem_y / (1 / 5760));
+                extsub_lon = Math.max(0, Math.min(23, extsub_lon));
+                extsub_lat = Math.max(0, Math.min(23, extsub_lat));
+                locator += String.fromCharCode(97 + extsub_lon);
+                locator += String.fromCharCode(97 + extsub_lat);
+            }
+            
+            return locator;
+        }
+
+        // Converte un Maidenhead locator (lunghezze 2, 4, 6, 8, 10) in Lat/Lon (centro del quadrante)
+        function decodeMaidenhead(locator) {
+            if (!locator) return null;
+            locator = locator.trim().toUpperCase();
+            if (locator.length < 2) return null;
+
+            let lon = -180.0;
+            let lat = -90.0;
+
+            let lonWidth = 20.0;
+            let latWidth = 10.0;
+
+            // Coppia 1: Lettere A-R
+            let c0 = locator.charCodeAt(0) - 65;
+            let c1 = locator.charCodeAt(1) - 65;
+            if (c0 < 0 || c0 > 17 || c1 < 0 || c1 > 17) return null;
+            lon += c0 * lonWidth;
+            lat += c1 * latWidth;
+
+            // Coppia 2: Cifre 0-9
+            if (locator.length >= 4) {
+                let c2 = locator.charCodeAt(2) - 48;
+                let c3 = locator.charCodeAt(3) - 48;
+                if (c2 < 0 || c2 > 9 || c3 < 0 || c3 > 9) return null;
+                lonWidth /= 10;
+                latWidth /= 10;
+                lon += c2 * lonWidth;
+                lat += c3 * latWidth;
+            } else {
+                return { lat: lat + latWidth/2, lon: lon + lonWidth/2 };
+            }
+
+            // Coppia 3: Lettere A-X
+            if (locator.length >= 6) {
+                let c4 = locator.charCodeAt(4) - 65;
+                let c5 = locator.charCodeAt(5) - 65;
+                if (c4 < 0 || c4 > 23 || c5 < 0 || c5 > 23) return null;
+                lonWidth /= 24;
+                latWidth /= 24;
+                lon += c4 * lonWidth;
+                lat += c5 * latWidth;
+            } else {
+                return { lat: lat + latWidth/2, lon: lon + lonWidth/2 };
+            }
+
+            // Coppia 4: Cifre 0-9
+            if (locator.length >= 8) {
+                let c6 = locator.charCodeAt(6) - 48;
+                let c7 = locator.charCodeAt(7) - 48;
+                if (c6 < 0 || c6 > 9 || c7 < 0 || c7 > 9) return null;
+                lonWidth /= 10;
+                latWidth /= 10;
+                lon += c6 * lonWidth;
+                lat += c7 * latWidth;
+            } else {
+                return { lat: lat + latWidth/2, lon: lon + lonWidth/2 };
+            }
+
+            // Coppia 5: Lettere A-X
+            if (locator.length >= 10) {
+                let c8 = locator.charCodeAt(8) - 65;
+                let c9 = locator.charCodeAt(9) - 65;
+                if (c8 < 0 || c8 > 23 || c9 < 0 || c9 > 23) return null;
+                lonWidth /= 24;
+                latWidth /= 24;
+                lon += c8 * lonWidth;
+                lat += c9 * latWidth;
+            }
+
+            return { lat: lat + latWidth/2, lon: lon + lonWidth/2 };
+        }
+
+        window.onload = function() {
+            initMap();
+            fetchWeatherData();
+            fetchWeatherForCustomStations();
+            loadRainViewerRadar();
+        };
+
+        // Configurazione Mappa Leaflet scura per risalto radar e tratte
+        function initMap() {
+            map = L.map('map', {
+                center: [43.0, 11.5],
+                zoom: 6.5,
+                zoomControl: false
+            });
+
+            // Aggiunge pulsante zoom in basso a destra
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+            // Mappe di base senza API key (Esri funziona anche aprendo il file in locale)
+            const baseStreet = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                attribution: 'Tiles &copy; Esri'
+            });
+            const baseTopo = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 19,
+                attribution: 'Tiles &copy; Esri'
+            });
+            const baseSat = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                maxZoom: 18,
+                attribution: 'Tiles &copy; Esri'
+            });
+            const baseOSM = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            });
+            baseStreet.addTo(map);
+            L.control.layers({
+                'Stradale (Esri)': baseStreet,
+                'Topografica (Esri)': baseTopo,
+                'Satellite (Esri)': baseSat,
+                'OpenStreetMap (solo se online su un sito)': baseOSM
+            }, null, { position: 'topright' }).addTo(map);
+
+            // Popola i marker per ogni nodo fisso/città di riferimento
+            CITIES.forEach(city => {
+                const marker = L.circleMarker([city.lat, city.lon], {
+                    radius: 6,
+                    fillColor: '#64748b', // Grigio di default
+                    color: '#fff',
+                    weight: 1,
+                    opacity: 0.8,
+                    fillOpacity: 0.7
+                }).addTo(map);
+
+                marker.bindPopup(`<strong>${city.name}</strong><br>Caricamento dati meteo...`);
+                cityMarkers[city.id] = marker;
+            });
+
+            // Marker Stazione A (Verde) - Trascinabile
+            markerA = L.marker([stationA.lat, stationA.lon], {
+                draggable: true,
+                title: "Stazione A"
+            }).addTo(map);
+
+            // Cambiamo icona del marker per differenziarlo graficamente
+            markerA.getElement().style.filter = "hue-rotate(120deg)"; // Verde
+
+            markerA.on('dragend', function(e) {
+                const position = markerA.getLatLng();
+                stationA.lat = parseFloat(position.lat.toFixed(5));
+                stationA.lon = parseFloat(position.lng.toFixed(5));
+                fetchWeatherForCustomStations();
+            });
+
+            // Marker Stazione B (Rosso) - Trascinabile
+            markerB = L.marker([stationB.lat, stationB.lon], {
+                draggable: true,
+                title: "Stazione B"
+            }).addTo(map);
+            markerB.getElement().style.filter = "hue-rotate(340deg)"; // Rosso/Rosa
+
+            markerB.on('dragend', function(e) {
+                const position = markerB.getLatLng();
+                stationB.lat = parseFloat(position.lat.toFixed(5));
+                stationB.lon = parseFloat(position.lng.toFixed(5));
+                fetchWeatherForCustomStations();
+            });
+        }
+
+        // Carica in tempo reale lo strato radar meteo sull'Italia (RainViewer API)
+        async function loadRainViewerRadar() {
+            try {
+                const response = await fetch('https://api.rainviewer.com/public/weather-maps.json');
+                const json = await response.json();
+                const frames = json && json.radar && json.radar.past ? json.radar.past : [];
+
+                if (frames.length > 0) {
+                    const lastTile = frames[frames.length - 1];
+                    const radarPath = lastTile.path;
+                    const host = json.host || 'https://tilecache.rainviewer.com';
+
+                    // Rimuove eventuali layer radar precedenti prima di aggiungerlo
+                    map.eachLayer(layer => {
+                        if (layer.options && layer.options.attribution === 'RainViewer') {
+                            map.removeLayer(layer);
+                        }
+                    });
+
+                    // RainViewer fornisce tile reali solo fino a zoom 7: oltre viene ingrandito l'ultimo disponibile
+                    L.tileLayer(`${host}${radarPath}/256/{z}/{x}/{y}/2/1_1.png`, {
+                        opacity: 0.65,
+                        maxNativeZoom: 7,
+                        maxZoom: 19,
+                        attribution: 'RainViewer'
+                    }).addTo(map);
+
+                    // Aggiorna l'ora del radar nell'header
+                    const date = new Date(lastTile.time * 1000);
+                    document.getElementById("radar-time").textContent = date.toLocaleTimeString('it-IT') + ' del ' + date.toLocaleDateString('it-IT');
+                }
+            } catch (error) {
+                console.error("Errore nel caricamento del radar RainViewer:", error);
+                document.getElementById("radar-time").textContent = "Non Disponibile";
+            }
+        }
+
+        // Ricerca località in Italia (Nominatim OpenStreetMap)
+        async function searchLocation() {
+            const query = document.getElementById("search-input").value;
+            const resultsFeedback = document.getElementById("search-results-feedback");
+            const btnA = document.getElementById("set-st-a-btn");
+            const btnB = document.getElementById("set-st-b-btn");
+
+            if (!query.trim()) return;
+
+            resultsFeedback.textContent = "Ricerca in corso...";
+            resultsFeedback.classList.remove("hidden");
+
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=it&limit=1`);
+                const data = await response.json();
+
+                if (data && data.length > 0) {
+                    const result = data[0];
+                    lastSearchResult = {
+                        lat: parseFloat(result.lat),
+                        lon: parseFloat(result.lon),
+                        name: result.display_name.split(",")[0]
+                    };
+
+                    resultsFeedback.innerHTML = `Trovato: <strong>${lastSearchResult.name}</strong><br>Scegli quale stazione posizionarvi:`;
+                    btnA.classList.remove("hidden");
+                    btnB.classList.remove("hidden");
+                } else {
+                    resultsFeedback.textContent = "Nessuna località trovata in Italia.";
+                    btnA.classList.add("hidden");
+                    btnB.classList.add("hidden");
+                }
+            } catch (error) {
+                console.error("Errore Nominatim:", error);
+                resultsFeedback.textContent = "Errore durante la ricerca.";
+            }
+        }
+
+        // Applica le coordinate trovate dalla ricerca a una delle due stazioni
+        function applySearchTo(stationKey) {
+            if (!lastSearchResult) return;
+
+            if (stationKey === 'A') {
+                stationA.lat = lastSearchResult.lat;
+                stationA.lon = lastSearchResult.lon;
+                stationA.name = lastSearchResult.name + " (ST-A)";
+                markerA.setLatLng([stationA.lat, stationA.lon]);
+            } else {
+                stationB.lat = lastSearchResult.lat;
+                stationB.lon = lastSearchResult.lon;
+                stationB.name = lastSearchResult.name + " (ST-B)";
+                markerB.setLatLng([stationB.lat, stationB.lon]);
+            }
+
+            // Nascondiamo i bottoni e puliamo la ricerca
+            document.getElementById("set-st-a-btn").classList.add("hidden");
+            document.getElementById("set-st-b-btn").classList.add("hidden");
+            document.getElementById("search-results-feedback").classList.add("hidden");
+            document.getElementById("search-input").value = "";
+
+            // Centra la mappa sul punto impostato
+            map.setView([lastSearchResult.lat, lastSearchResult.lon], 11);
+
+            fetchWeatherForCustomStations();
+        }
+
+        // Applica il QTH Locator digitato dall'utente ad una delle due stazioni
+        function applyLocator(stationKey) {
+            const inputId = stationKey === 'A' ? 'loc-a-input' : 'loc-b-input';
+            let inputVal = document.getElementById(inputId).value.trim().toUpperCase();
+            const feedback = document.getElementById('locator-feedback');
+            
+            if (inputVal.length < 2) {
+                feedback.classList.add('hidden');
+                return;
+            }
+            
+            // Regex Maidenhead Locator (fino a 10 caratteri, coppie alternate lettere-numeri)
+            const regex = /^[A-R]{2}([0-9]{2}([A-X]{2}([0-9]{2}([A-X]{2})?)?)?)?$/;
+            
+            if (!regex.test(inputVal)) {
+                feedback.textContent = "Formato QTH Locator non valido!";
+                feedback.classList.remove('hidden');
+                return;
+            }
+            
+            if (inputVal.length % 2 !== 0) {
+                feedback.textContent = "Il locator deve avere lunghezza pari (2, 4, 6, 8 o 10 caratteri)";
+                feedback.classList.remove('hidden');
+                return;
+            }
+            
+            feedback.classList.add('hidden');
+            
+            const coords = decodeMaidenhead(inputVal);
+            if (coords) {
+                if (stationKey === 'A') {
+                    stationA.lat = parseFloat(coords.lat.toFixed(5));
+                    stationA.lon = parseFloat(coords.lon.toFixed(5));
+                    stationA.name = `QTH ${inputVal} (A)`;
+                    markerA.setLatLng([stationA.lat, stationA.lon]);
+                } else {
+                    stationB.lat = parseFloat(coords.lat.toFixed(5));
+                    stationB.lon = parseFloat(coords.lon.toFixed(5));
+                    stationB.name = `QTH ${inputVal} (B)`;
+                    markerB.setLatLng([stationB.lat, stationB.lon]);
+                }
+                
+                // Centra la mappa preservando lo zoom
+                map.setView([coords.lat, coords.lon], map.getZoom());
+                fetchWeatherForCustomStations();
+            }
+        }
+
+        // Chiamata API Open-Meteo per i nodi geografici nazionali predefiniti
+        async function fetchWeatherData() {
+            const lats = CITIES.map(c => c.lat).join(",");
+            const lons = CITIES.map(c => c.lon).join(",");
+            const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lats}&longitude=${lons}&current=temperature_2m,relative_humidity_2m,precipitation,pressure_msl,wind_speed_10m`;
+
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                if (Array.isArray(data)) {
+                    data.forEach((nodeData, index) => {
+                        const current = nodeData.current;
+                        CITIES[index].temp = current.temperature_2m;
+                        CITIES[index].rh = current.relative_humidity_2m;
+                        CITIES[index].rain = current.precipitation;
+                        CITIES[index].pressure = current.pressure_msl;
+                        CITIES[index].wind = current.wind_speed_10m;
+                    });
+                }
+
+                showNotification("Meteo dei Nodi Nazionali aggiornato.");
+                recalculateAll();
+
+            } catch (error) {
+                console.warn("API Open-Meteo fallita o non raggiungibile per i nodi fissi.", error);
+                recalculateAll();
+            }
+        }
+
+        // Chiama Open-Meteo in tempo reale per le coordinate precise di Station A e Station B
+        async function fetchWeatherForCustomStations() {
+            const apiUrl = `https://api.open-meteo.com/v1/forecast?latitude=${stationA.lat},${stationB.lat}&longitude=${stationA.lon},${stationB.lon}&current=temperature_2m,relative_humidity_2m,precipitation,pressure_msl,wind_speed_10m`;
+
+            try {
+                const response = await fetch(apiUrl);
+                const data = await response.json();
+
+                if (Array.isArray(data) && data.length === 2) {
+                    // Stazione A
+                    stationA.temp = data[0].current.temperature_2m;
+                    stationA.rh = data[0].current.relative_humidity_2m;
+                    stationA.rain = data[0].current.precipitation;
+                    stationA.pressure = data[0].current.pressure_msl;
+                    stationA.wind = data[0].current.wind_speed_10m;
+
+                    // Stazione B
+                    stationB.temp = data[1].current.temperature_2m;
+                    stationB.rh = data[1].current.relative_humidity_2m;
+                    stationB.rain = data[1].current.precipitation;
+                    stationB.pressure = data[1].current.pressure_msl;
+                    stationB.wind = data[1].current.wind_speed_10m;
+
+                    showNotification("Meteo locale delle stazioni radio aggiornato in tempo reale.");
+                    recalculateAll();
+                }
+            } catch (error) {
+                console.error("Errore recupero meteo per punti dinamici:", error);
+            }
+        }
+
+        // Calcola l'attenuazione specifica teorica in dB/km secondo i criteri definiti ITU-R
+        function calculateItuAttenuation(frequencyKey, temp, rh, rainRate) {
+            const band = MICROWAVE_BAND_CONFIGS[frequencyKey];
+            if (!band) return 0;
+
+            // 1. Calcolo pressione di vapore saturo (Magnus-Tetens)
+            const e_sat = 6.1121 * Math.exp((17.67 * temp) / (temp + 243.5)); // hPa
+            
+            // 2. Pressione reale di vapore acqueo
+            const e = e_sat * (rh / 100); // hPa
+
+            // 3. Densità del vapore acqueo (g/m3)
+            const waterVaporDensity = (e * 216.7) / (temp + 273.15);
+
+            // 4. Attenuazione da Gas (Ossigeno + Vapore Acqueo) - ITU-R P.676
+            const gammaGas = band.gammaOxygen + (waterVaporDensity * band.waterVaporFactor);
+
+            // 5. Attenuazione da Pioggia (ITU-R P.838)
+            let gammaRain = 0;
+            if (rainRate > 0) {
+                gammaRain = band.k_rain * Math.pow(rainRate, band.alpha_rain);
+            }
+
+            // Somma totale dell'attenuazione specifica per chilometro
+            return gammaGas + gammaRain;
+        }
+
+        // Calcolo indicativo del Ducting Troposferico (Inversione termica o stabilità barica costiera)
+        function calculateDuctingIndex(temp, rh, pressure, windSpeed) {
+            let score = 0;
+            if (pressure > 1013) score += (pressure - 1013) * 3;
+            if (rh > 60) score += (rh - 60) * 1.5;
+            if (windSpeed < 15) score += (15 - windSpeed) * 2;
+
+            // Normalizzato in percentuale 0-100
+            return Math.min(Math.max(Math.round(score), 5), 95);
+        }
+
+        // Esegue il ricalcolo per tutte le stazioni meteo della lista e per i marker attivi
+        function recalculateAll() {
+            const band = MICROWAVE_BAND_CONFIGS[selectedFrequency];
+
+            // Aggiorna nodi nazionali di riferimento sulla mappa
+            CITIES.forEach(city => {
+                city.att = calculateItuAttenuation(selectedFrequency, city.temp, city.rh, city.rain);
+                city.ducting = calculateDuctingIndex(city.temp, city.rh, city.pressure, city.wind);
+
+                let color = '#10b981'; // Ottimo verde
+                if (city.att > 0.20) color = '#f59e0b'; // Moderato giallo
+                if (city.att > 2.0) color = '#ef4444'; // Critico rosso / Rain Fade
+
+                const marker = cityMarkers[city.id];
+                if (marker) {
+                    marker.setStyle({ fillColor: color });
+                    marker.setPopupContent(`
+                        <div class="text-xs text-slate-800 p-1">
+                            <strong class="text-sm block border-b border-slate-200 pb-1 mb-1">${city.name}</strong>
+                            <b>Temp:</b> ${city.temp} °C<br>
+                            <b>Umidità:</b> ${city.rh}%<br>
+                            <b>Pioggia:</b> ${city.rain} mm/h<br>
+                            <b class="text-cyan-600 block mt-1">Attenuazione: ${city.att.toFixed(4)} dB/km</b>
+                        </div>
+                    `);
+                }
+            });
+
+            // Calcolo parametri propagazione per stazioni A e B
+            stationA.att = calculateItuAttenuation(selectedFrequency, stationA.temp, stationA.rh, stationA.rain);
+            stationB.att = calculateItuAttenuation(selectedFrequency, stationB.temp, stationB.rh, stationB.rain);
+
+            // Genera i QTH locator a 10 caratteri per i popup
+            const locA = encodeMaidenhead(stationA.lat, stationA.lon, 10);
+            const locB = encodeMaidenhead(stationB.lat, stationB.lon, 10);
+
+            // Aggiorna Popup dinamici dei marker trascinabili A e B
+            markerA.bindPopup(`
+                <div class="text-xs text-slate-800">
+                    <strong class="text-emerald-600">STAZIONE A (Verde)</strong><br>
+                    <b>QTH Locator:</b> <span class="font-bold text-emerald-600">${locA.toUpperCase()}</span><br>
+                    <b>Lat:</b> ${stationA.lat}<br>
+                    <b>Lon:</b> ${stationA.lon}<br>
+                    <b>Meteo:</b> ${stationA.temp}°C, ${stationA.rh}% RH, ${stationA.rain}mm/h<br>
+                    <b>Att. Specifica:</b> ${stationA.att.toFixed(4)} dB/km
+                </div>
+            `);
+
+            markerB.bindPopup(`
+                <div class="text-xs text-slate-800">
+                    <strong class="text-rose-600">STAZIONE B (Rosso)</strong><br>
+                    <b>QTH Locator:</b> <span class="font-bold text-rose-600">${locB.toUpperCase()}</span><br>
+                    <b>Lat:</b> ${stationB.lat}<br>
+                    <b>Lon:</b> ${stationB.lon}<br>
+                    <b>Meteo:</b> ${stationB.temp}°C, ${stationB.rh}% RH, ${stationB.rain}mm/h<br>
+                    <b>Att. Specifica:</b> ${stationB.att.toFixed(4)} dB/km
+                </div>
+            `);
+
+            renderTable();
+            calculatePathLoss();
+        }
+
+        // Aggiorna la tabella in tempo reale
+        function renderTable() {
+            const tableBody = document.getElementById("stations-table-body");
+            tableBody.innerHTML = "";
+
+            CITIES.forEach(city => {
+                let statusColor = "text-emerald-400";
+                if (city.att > 0.20) statusColor = "text-amber-400";
+                if (city.att > 2.0) statusColor = "text-red-400";
+
+                const tr = document.createElement("tr");
+                tr.className = "border-b border-slate-800/50 hover:bg-[#1a1d2d]/30 transition";
+                tr.innerHTML = `
+                    <td class="py-3 pl-2 font-medium text-white">${city.name.split(" (")[0]}</td>
+                    <td class="py-3 font-mono">${city.temp} °C</td>
+                    <td class="py-3 font-mono">${city.rh}%</td>
+                    <td class="py-3 font-mono flex items-center gap-1">
+                        <span class="material-icons text-xs ${city.rain > 0 ? 'text-blue-400 animate-bounce' : 'text-slate-600'}">water_drop</span>
+                        ${city.rain.toFixed(1)} mm/h
+                    </td>
+                    <td class="py-3 font-mono text-slate-400">${Math.round(city.pressure)} hPa</td>
+                    <td class="py-3 font-mono font-bold ${statusColor}">${city.att.toFixed(4)}</td>
+                    <td class="py-3 text-right pr-2">
+                        <span class="inline-block bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono text-[11px]">${city.ducting}%</span>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        // Calcola la distanza geodetica reale tra i marker A e B e la perdita di propagazione totale
+        // ---- Profilo altimetrico A-B con LOS e zona di Fresnel ----
+        let profTimer = null, profCache = {};
+        function scheduleProfile(distKm, fGhz) {
+            clearTimeout(profTimer);
+            profTimer = setTimeout(() => drawProfile(distKm, fGhz), 400);
+        }
+        async function drawProfile(distKm, fGhz) {
+            updateDuctIndex();
+            const status = document.getElementById('prof-status');
+            const box = document.getElementById('prof-chart');
+            if (!status || !box || !(distKm > 0.05)) { if (box) box.innerHTML = ''; return; }
+            const N = 80;
+            const lats = [], lons = [];
+            for (let i = 0; i < N; i++) {
+                const t = i / (N - 1);
+                lats.push((stationA.lat + (stationB.lat - stationA.lat) * t).toFixed(5));
+                lons.push((stationA.lon + (stationB.lon - stationA.lon) * t).toFixed(5));
+            }
+            const key = lats[0] + lons[0] + lats[N-1] + lons[N-1];
+            try {
+                if (!profCache[key]) {
+                    status.textContent = 'Scarico le quote del terreno...';
+                    const r = await fetch(`https://api.open-meteo.com/v1/elevation?latitude=${lats.join(',')}&longitude=${lons.join(',')}`);
+                    const j = await r.json();
+                    if (!j.elevation || j.elevation.length !== N) throw new Error('risposta non valida');
+                    profCache[key] = j.elevation;
+                }
+                renderProfile(profCache[key], distKm, fGhz);
+            } catch (e) {
+                console.warn('Profilo altimetrico non disponibile', e);
+                status.textContent = 'Profilo non disponibile (servizio quote non raggiungibile).';
+                box.innerHTML = '';
+            }
+        }
+        // ---- Indice di condotto troposferico (stima da modello, gradiente di rifrattività) ----
+        let ductCache = {};
+        async function updateDuctIndex() {
+            const box = document.getElementById('duct-box');
+            if (!box) return;
+            const levels = [1000, 975, 950, 925, 900, 850];
+            const vars = [];
+            levels.forEach(l => vars.push(`temperature_${l}hPa`, `relative_humidity_${l}hPa`, `geopotential_height_${l}hPa`));
+            const hour = new Date().getUTCHours();
+            const key = [stationA.lat, stationA.lon, stationB.lat, stationB.lon].map(v => v.toFixed(2)).join(',') + '|' + new Date().toISOString().slice(0, 13);
+            try {
+                if (!ductCache[key]) {
+                    box.textContent = 'Calcolo indice di condotto...';
+                    const url = `https://api.open-meteo.com/v1/forecast?latitude=${stationA.lat},${stationB.lat}&longitude=${stationA.lon},${stationB.lon}&hourly=${vars.join(',')}&forecast_days=1&timezone=UTC`;
+                    const r = await fetch(url);
+                    const j = await r.json();
+                    const arr = Array.isArray(j) ? j : [j];
+                    if (arr.length < 2 || !arr[0].hourly) throw new Error('risposta non valida');
+                    ductCache[key] = arr.map(loc => analyzeDuct(loc.hourly, levels, hour));
+                }
+                renderDuct(ductCache[key]);
+            } catch (e) {
+                console.warn('Indice condotto non disponibile', e);
+                box.textContent = 'Indice di condotto non disponibile (dati dei livelli di pressione non raggiungibili).';
+            }
+        }
+        function analyzeDuct(h, levels, hour) {
+            const pts = [];
+            levels.forEach(l => {
+                const t = h[`temperature_${l}hPa`]?.[hour], rh = h[`relative_humidity_${l}hPa`]?.[hour], z = h[`geopotential_height_${l}hPa`]?.[hour];
+                if (t == null || rh == null || z == null) return;
+                const T = t + 273.15;
+                const es = 6.112 * Math.exp(17.62 * t / (243.12 + t));
+                const e = rh / 100 * es;
+                const N = 77.6 / T * (l + 4810 * e / T);
+                pts.push({ z, N });
+            });
+            pts.sort((a, b) => a.z - b.z);
+            let best = null;
+            for (let i = 0; i < pts.length - 1; i++) {
+                const dz = pts[i + 1].z - pts[i].z;
+                if (dz < 30) continue;
+                const g = (pts[i + 1].N - pts[i].N) / (dz / 1000);
+                if (best === null || g < best.g) best = { g, z1: pts[i].z, z2: pts[i + 1].z };
+            }
+            return best;
+        }
+        function renderDuct(res) {
+            const box = document.getElementById('duct-box');
+            const rank = b => !b ? 0 : (b.g <= -157 ? 2 : (b.g <= -79 ? 1 : 0));
+            const labels = [
+                ['Assente', 'text-slate-300', 'atmosfera vicina alla standard'],
+                ['Possibile (super-rifrazione)', 'text-amber-400', 'il raggio si curva più della norma ma non segue la Terra'],
+                ['Probabile', 'text-emerald-400', 'gradiente sotto -157 N/km: condizioni da condotto']
+            ];
+            const rA = rank(res[0]), rB = rank(res[1]);
+            const overall = Math.min(rA, rB);
+            const fmt = (name, b) => b ? `${name}: ${b.g.toFixed(0)} N/km tra ${Math.round(b.z1)} e ${Math.round(b.z2)} m` : `${name}: dati non disponibili`;
+            const partial = (rA !== rB) ? ' &middot; <span class="text-slate-400">solo un estremo è favorevole</span>' : '';
+            box.innerHTML = `<div class="mb-1">Indice di condotto (ora attuale): <span class="${labels[overall][1]} font-bold">${labels[overall][0]}</span>${partial}</div>
+                <div class="text-[11px] text-slate-400">${labels[overall][2]}</div>
+                <div class="text-[11px] text-slate-500 mt-1">${fmt('A', res[0])} &middot; ${fmt('B', res[1])}</div>
+                <div class="text-[10px] text-slate-600 mt-1">Stima da modello meteo (livelli 1000-850 hPa, strati di circa 100-200 m): non vede i condotti sottili sul mare e non sostituisce i beacon.</div>`;
+        }
+        function renderProfile(elev, D, f) {
+            const N = elev.length, Re = 6371;
+            const kSel = document.getElementById('prof-k').value;
+            const ducting = (kSel === 'inf');
+            const K = ducting ? Infinity : parseFloat(kSel);
+            const hA = parseFloat(document.getElementById('prof-ha').value) || 0;
+            const hB = parseFloat(document.getElementById('prof-hb').value) || 0;
+            const zA = elev[0] + hA, zB = elev[N-1] + hB;
+            const pts = [];
+            let minClear = Infinity, minClear60 = Infinity, worstD = 0;
+            for (let i = 0; i < N; i++) {
+                const d1 = D * i / (N - 1), d2 = D - d1;
+                const bulge = ducting ? 0 : (d1 * d2) / (2 * K * Re) * 1000; // m (0 con condotto: il segnale segue la curvatura)
+                const terr = elev[i] + bulge;
+                const los = zA + (zB - zA) * i / (N - 1);
+                const F1 = (i === 0 || i === N - 1) ? 0 : 17.32 * Math.sqrt(d1 * d2 / (f * D)); // m
+                pts.push({ d1, terr, los, F1 });
+                const clear = los - terr;
+                if (clear < minClear) { minClear = clear; worstD = d1; }
+                if (i > 0 && i < N - 1) minClear60 = Math.min(minClear60, clear - 0.6 * F1);
+            }
+            const W = 900, H = 300, L = 55, R = 15, T = 15, B = 30;
+            const ys = pts.flatMap(p => [p.terr, p.los + p.F1, p.los - p.F1]);
+            let yMin = Math.min(...ys), yMax = Math.max(...ys);
+            const pad = (yMax - yMin) * 0.08 + 5; yMin -= pad; yMax += pad;
+            const X = d => L + d / D * (W - L - R);
+            const Y = z => T + (yMax - z) / (yMax - yMin) * (H - T - B);
+            const line = fn => pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.d1).toFixed(1)},${Y(fn(p)).toFixed(1)}`).join(' ');
+            const terrArea = line(p => p.terr) + ` L${X(D)},${Y(yMin)} L${X(0)},${Y(yMin)} Z`;
+            const fres = pts.map(p => `${X(p.d1).toFixed(1)},${Y(p.los + p.F1).toFixed(1)}`).join(' ') + ' ' +
+                         pts.slice().reverse().map(p => `${X(p.d1).toFixed(1)},${Y(p.los - p.F1).toFixed(1)}`).join(' ');
+            let grid = '';
+            for (let k = 0; k <= 4; k++) {
+                const z = yMin + (yMax - yMin) * k / 4;
+                grid += `<line x1="${L}" x2="${W-R}" y1="${Y(z)}" y2="${Y(z)}" stroke="#1e293b"/><text x="${L-6}" y="${Y(z)+3}" text-anchor="end" fill="#64748b" font-size="10">${Math.round(z)} m</text>`;
+                const d = D * k / 4;
+                grid += `<text x="${X(d)}" y="${H-10}" text-anchor="middle" fill="#64748b" font-size="10">${d.toFixed(1)} km</text>`;
+            }
+            document.getElementById('prof-chart').innerHTML =
+                `<svg viewBox="0 0 ${W} ${H}" style="min-width:600px;width:100%;height:auto" xmlns="http://www.w3.org/2000/svg">
+                    ${grid}
+                    <polygon points="${fres}" fill="#22d3ee" fill-opacity="0.12" stroke="#22d3ee" stroke-opacity="0.4" stroke-dasharray="3 3"/>
+                    <path d="${terrArea}" fill="#78716c" fill-opacity="0.75" stroke="#a8a29e"/>
+                    <path d="${line(p => p.los)}" fill="none" stroke="#fbbf24" stroke-width="2"/>
+                    <circle cx="${X(0)}" cy="${Y(zA)}" r="5" fill="#34d399"/><text x="${X(0)+8}" y="${Y(zA)-8}" fill="#34d399" font-size="11" font-weight="bold">A</text>
+                    <circle cx="${X(D)}" cy="${Y(zB)}" r="5" fill="#fb7185"/><text x="${X(D)-14}" y="${Y(zB)-8}" fill="#fb7185" font-size="11" font-weight="bold">B</text>
+                </svg>`;
+            const st = document.getElementById('prof-status');
+            const mode = ducting ? 'condotto aperto' : (K === 4/3 || Math.abs(K - 4/3) < 0.01 ? 'atmosfera standard' : `k=${K}`);
+            const tail = ` &middot; ${D.toFixed(1)} km @ ${f} GHz &middot; ${mode}`;
+            if (minClear < 0) {
+                const hint = ducting ? 'ostacolo di terreno' : 'ostacolo';
+                const extra = (!ducting && Math.abs(K - 4/3) < 0.01) ? ' &middot; <span class="text-slate-400">oltre l\'orizzonte radio: serve ducting, scegli "Condotto aperto"</span>' : '';
+                st.innerHTML = `<span class="text-rose-400">Percorso OSTRUITO</span> (${hint} a ${worstD.toFixed(1)} km, ${(-minClear).toFixed(0)} m sopra la linea di vista)${tail}${extra}`;
+            } else if (minClear60 < 0) {
+                st.innerHTML = `<span class="text-amber-400">Terreno libero, Fresnel invasa</span> (margine minimo ${minClear.toFixed(0)} m, sotto il 60% di F1)${tail}`;
+            } else {
+                st.innerHTML = `<span class="text-emerald-400">${ducting ? 'Tratta libera da ostacoli di terreno: possibile con il condotto' : 'LOS libera, Fresnel (60%) libera'}</span> (margine minimo ${minClear.toFixed(0)} m)${tail}`;
+            }
+        }
+        ['prof-ha', 'prof-hb', 'prof-k'].forEach(id => document.addEventListener('input', e => {
+            if (e.target.id === id) calculatePathLoss();
+        }));
+
+        function calculatePathLoss() {
+            if (pathPolyline) {
+                map.removeLayer(pathPolyline);
+            }
+
+            const locA = encodeMaidenhead(stationA.lat, stationA.lon, 10).toUpperCase();
+            const locB = encodeMaidenhead(stationB.lat, stationB.lon, 10).toUpperCase();
+
+            // Aggiorna gli input nella barra laterale se non sono attivi
+            if (document.activeElement !== document.getElementById('loc-a-input')) {
+                document.getElementById('loc-a-input').value = locA;
+            }
+            if (document.activeElement !== document.getElementById('loc-b-input')) {
+                document.getElementById('loc-b-input').value = locB;
+            }
+
+            // Aggiorna box informazioni lat/lon nella sidebar
+            document.getElementById("info-st-a").innerHTML = `<span class="text-emerald-400 font-bold block mb-1 font-mono">${locA}</span>Lat: ${stationA.lat}<br>Lon: ${stationA.lon}<br>${stationA.temp}°C - ${stationA.rh}% RH`;
+            document.getElementById("info-st-b").innerHTML = `<span class="text-rose-400 font-bold block mb-1 font-mono">${locB}</span>Lat: ${stationB.lat}<br>Lon: ${stationB.lon}<br>${stationB.temp}°C - ${stationB.rh}% RH`;
+
+            // Traccia linea sulla mappa tra i due marker
+            pathPolyline = L.polyline([[stationA.lat, stationA.lon], [stationB.lat, stationB.lon]], {
+                color: '#000000', // Nero
+                weight: 3,
+                dashArray: '5, 8',
+                opacity: 1
+            }).addTo(map);
+
+            // 1. Calcolo distanza reale (Haversine)
+            const R_Earth = 6371; // km
+            const dLat = (stationB.lat - stationA.lat) * Math.PI / 180;
+            const dLon = (stationB.lon - stationA.lon) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(stationA.lat * Math.PI / 180) * Math.cos(stationB.lat * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            const distance = R_Earth * c; // km
+
+            // 2. Frequenza e costanti d'onda
+            const freqStr = selectedFrequency.replace(" GHz", "");
+            const frequencyGhz = parseFloat(freqStr);
+
+            // 3. Perdita di Spazio Libero (Free Space Loss - FSL)
+            const fsl = 32.44 + (20 * Math.log10(distance)) + (20 * Math.log10(frequencyGhz * 1000));
+
+            // 4. Attenuazione Atmosferica Totale media lungo il percorso
+            const averageSpecificLoss = (stationA.att + stationB.att) / 2;
+            const totalAtmosphericLoss = averageSpecificLoss * distance;
+
+            // 5. Link Budget complessivo
+            const totalLoss = fsl + totalAtmosphericLoss;
+
+            // Aggiorna gli elementi UI delle perdite
+            document.getElementById("p2p-distance").textContent = `${distance.toFixed(1)} km`;
+            document.getElementById("p2p-fsl").textContent = `${fsl.toFixed(2)} dB`;
+            document.getElementById("p2p-gas").textContent = `${totalAtmosphericLoss.toFixed(2)} dB`;
+            document.getElementById("p2p-total").textContent = `${totalLoss.toFixed(2)} dB`;
+
+            scheduleProfile(distance, frequencyGhz);
+
+            // 6. Recupero parametri radio fisici per Link Budget
+            const txPowerDbm = parseFloat(document.getElementById("tx-power").value) || 30;
+            const rxSensDbm = parseFloat(document.getElementById("rx-sens").value) || -110;
+            const gainA = parseFloat(document.getElementById("ant-gain-a").value) || 35;
+            const gainB = parseFloat(document.getElementById("ant-gain-b").value) || 35;
+
+            // Calcolo effettivo della potenza ricevuta
+            const rxSignalDbm = txPowerDbm + gainA + gainB - totalLoss;
+            const linkMargin = rxSignalDbm - rxSensDbm;
+
+            // Aggiornamento elementi UI di dettaglio del segnale
+            document.getElementById("val-rx-signal").textContent = `${rxSignalDbm.toFixed(1)} dBm`;
+            document.getElementById("val-rx-sens").textContent = `${rxSensDbm.toFixed(1)} dBm`;
+            document.getElementById("feasibility-margin-label").textContent = `Margine: ${linkMargin.toFixed(1)} dB`;
+
+            // Aggiornamento dinamico dei 3 pallini di fattibilità (Verde, Giallo, Rosso)
+            const fCard = document.getElementById("feasibility-card");
+            const fDot = document.getElementById("feasibility-dot");
+            const fStatus = document.getElementById("feasibility-status");
+            const fDesc = document.getElementById("feasibility-desc");
+
+            // Rimuove vecchie classi di stato
+            fCard.className = "p-4 rounded-xl border bg-slate-950/20 flex flex-col gap-2 transition-all duration-300 ";
+            fDot.className = "w-3.5 h-3.5 rounded-full ring-4 transition-all duration-300 ";
+
+            if (linkMargin >= 15) {
+                // VERDE: Ottime possibilità di collegamento stabile
+                fCard.classList.add("border-emerald-500/20", "bg-emerald-500/5");
+                fDot.classList.add("bg-emerald-500", "ring-emerald-500/20", "animate-pulse");
+                fStatus.textContent = "Buone Possibilità";
+                fStatus.className = "text-xs font-bold uppercase tracking-wider text-emerald-400";
+                fDesc.textContent = "Il collegamento ha un margine eccellente (>15 dB). Propagazione stabile e tolleranza ottimale ad assorbimento e piogge.";
+            } else if (linkMargin >= 0 && linkMargin < 15) {
+                // GIALLO: Collegamento possibile ma scarse probabilità di stabilità
+                fCard.classList.add("border-amber-500/20", "bg-amber-500/5");
+                fDot.classList.add("bg-amber-500", "ring-amber-500/20");
+                fStatus.textContent = "Scarse Probabilità";
+                fStatus.className = "text-xs font-bold uppercase tracking-wider text-amber-400";
+                fDesc.textContent = "Il segnale supera la soglia di rumore ma ha un margine ridotto (<15 dB). Qualsiasi accenno di pioggia o vento forte spegnerà la tratta.";
+            } else {
+                // ROSSO: Collegamento del tutto non fattibile
+                fCard.classList.add("border-rose-500/20", "bg-rose-500/5");
+                fDot.classList.add("bg-rose-500", "ring-rose-500/20");
+                fStatus.textContent = "Fattibilità Nulla";
+                fStatus.className = "text-xs font-bold uppercase tracking-wider text-rose-400";
+                fDesc.textContent = "Il segnale calcolato è inferiore alla sensibilità del ricevitore. Il collegamento non è fisicamente realizzabile con l'hardware attuale.";
+            }
+        }
+
+        // Cambia frequenza di lavoro e aggiorna badge ed indicatori fisici
+        function selectFrequency(freqKey) {
+            selectedFrequency = freqKey;
+            
+            // Aggiorna lo stato visivo dei pulsanti frequenza
+            document.querySelectorAll(".freq-btn").forEach(btn => {
+                btn.classList.remove("border-cyan-500", "bg-cyan-500/10", "text-white");
+                btn.classList.add("border-slate-800", "bg-[#1a1d2d]", "text-slate-300");
+            });
+
+            const activeBtn = document.getElementById(`freq-btn-${freqKey.replace(" GHz", "")}`);
+            if (activeBtn) {
+                activeBtn.classList.remove("border-slate-800", "bg-[#1a1d2d]", "text-slate-300");
+                activeBtn.classList.add("border-cyan-500", "bg-cyan-500/10", "text-white");
+            }
+
+            // Aggiorna badge lunghezza d'onda
+            document.getElementById("wavelength-badge").textContent = `λ = ${MICROWAVE_BAND_CONFIGS[freqKey].wavelength}`;
+
+            recalculateAll();
+        }
+
+        // Banner delle notifiche automatiche
+        function showNotification(text) {
+            const banner = document.getElementById("alert-banner");
+            const alertText = document.getElementById("alert-text");
+            alertText.textContent = text;
+            banner.classList.remove("hidden");
+            
+            // Nasconde dopo 3 secondi
+            setTimeout(() => {
+                banner.classList.add("hidden");
+            }, 3000);
+        }
+
+        // Memorizza il locator corrente in locale sul browser come punto di avvio predefinito
+        function saveCurrentAsDefault(stationKey) {
+            const currentLoc = stationKey === 'A' ? 
+                encodeMaidenhead(stationA.lat, stationA.lon, 10).toUpperCase() : 
+                encodeMaidenhead(stationB.lat, stationB.lon, 10).toUpperCase();
+            
+            localStorage.setItem(`mw_default_st${stationKey}`, currentLoc);
+            showNotification(`Locator QTH ${currentLoc} impostato come default per Stazione ${stationKey}!`);
+        }
+
+        // Rileva in tempo reale le coordinate GPS reali dal dispositivo e posiziona il marker
+        function useGPS(stationKey) {
+            if (!navigator.geolocation) {
+                showNotification("Geolocalizzazione non supportata dal tuo browser.");
+                return;
+            }
+            showNotification("Rilevamento posizione GPS in corso...");
+            navigator.geolocation.getCurrentPosition(
+                (position) => {
+                    const lat = parseFloat(position.coords.latitude.toFixed(5));
+                    const lon = parseFloat(position.coords.longitude.toFixed(5));
+                    const loc = encodeMaidenhead(lat, lon, 10).toUpperCase();
+                    
+                    if (stationKey === 'A') {
+                        stationA.lat = lat;
+                        stationA.lon = lon;
+                        stationA.name = `GPS ${loc} (A)`;
+                        markerA.setLatLng([lat, lon]);
+                    } else {
+                        stationB.lat = lat;
+                        stationB.lon = lon;
+                        stationB.name = `GPS ${loc} (B)`;
+                        markerB.setLatLng([lat, lon]);
+                    }
+                    map.setView([lat, lon], 12);
+                    fetchWeatherForCustomStations();
+                    showNotification(`Stazione ${stationKey} impostata su coordinate GPS (${loc})`);
+                },
+                (error) => {
+                    console.error("Errore rilevamento GPS:", error);
+                    showNotification("Errore di rilevamento GPS o autorizzazione negata.");
+                },
+                { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+            );
+        }
+    </script>
+</body>
+</html>
